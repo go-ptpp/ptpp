@@ -2,6 +2,7 @@
 
 ![Go Version](https://img.shields.io/github/go-mod/go-version/go-ptpp/ptpp?style=flat-square)
 ![License](https://img.shields.io/github/license/go-ptpp/ptpp?style=flat-square)
+[![PkgGoDev](https://pkg.go.dev/badge/gopkg.in/ptpp.v1?tab=doc)](https://pkg.go.dev/gopkg.in/ptpp.v1?tab=doc)
 
 Persian Text PreProcessor is a tool to help search engines to improve their
 results. Although this library is especially optimized for Persian language, it
