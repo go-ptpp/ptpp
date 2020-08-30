@@ -1,6 +1,8 @@
 package ptpp
 
 import (
+	"encoding/gob"
+	"io"
 	"sync"
 	"unicode/utf8"
 )
@@ -97,4 +99,28 @@ func (sc *DefaultSpellChecker) trainWord(word string) {
 	}
 
 	sc.lexicon[len].Add(word)
+}
+
+// Load restores the state of the spell-checker from r.
+func (sc *DefaultSpellChecker) Load(r io.Reader) error {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	if sc.lexicon == nil {
+		sc.lexicon = make(map[int]wordList)
+	}
+
+	return gob.NewDecoder(r).Decode(&sc.lexicon)
+}
+
+// Save stores the state of the spell-checker into w.
+func (sc *DefaultSpellChecker) Save(w io.Writer) error {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+
+	if sc.lexicon == nil {
+		sc.lexicon = make(map[int]wordList)
+	}
+
+	return gob.NewEncoder(w).Encode(sc.lexicon)
 }

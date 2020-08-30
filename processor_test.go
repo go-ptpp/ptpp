@@ -1,6 +1,8 @@
 package ptpp_test
 
 import (
+	"os"
+	"path"
 	"strings"
 	"testing"
 
@@ -31,4 +33,18 @@ func TestProcessor(t *testing.T) {
 			ElementsMatch(t, got, tt.want)
 		})
 	}
+
+	workingDir, err := os.Getwd()
+	if !NoError(t, err) {
+		return
+	}
+
+	filePath := path.Join(workingDir, "test.zip")
+	defer os.Remove(filePath)
+
+	if !NoError(t, processor.Save(filePath)) {
+		return
+	}
+
+	NoError(t, processor.Load(filePath))
 }

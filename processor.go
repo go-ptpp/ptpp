@@ -1,10 +1,25 @@
 package ptpp
 
 import (
+	"archive/zip"
 	"bufio"
 	"io"
+	"io/ioutil"
+	"os"
+	"path"
 	"strings"
+	"sync"
 )
+
+// LoadSaver denotes an object that can store and restore its state.
+type LoadSaver interface {
+
+	// Load restores the state of the object from r.
+	Load(r io.Reader) error
+
+	// Save stores the state of the object into w.
+	Save(w io.Writer) error
+}
 
 // SpellChecker is a word spell-checker.
 type SpellChecker interface {
@@ -39,9 +54,14 @@ type Processor struct {
 	// SemanticMatcher is the semantic matcher to find the best suggestion. If
 	// this field is nil, the preprocessor will use DefaultSemanticMatcher.
 	SemanticMatcher SemanticMatcher
+
+	mutex sync.Mutex
 }
 
 func (p *Processor) ensureFields() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	if p.SpellChecker == nil {
 		p.SpellChecker = &DefaultSpellChecker{}
 	}
@@ -172,4 +192,102 @@ func readWords(r io.Reader) ([]string, error) {
 	}
 
 	return words, nil
+}
+
+const (
+	scFileName = "sc.gob"
+	smFileName = "sm.gob"
+)
+
+// Load restores the state of the processor from filePath.
+func (p *Processor) Load(filePath string) error {
+	p.ensureFields()
+
+	zr, err := zip.OpenReader(filePath)
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+
+	for _, f := range zr.File {
+		switch f.Name {
+		case scFileName:
+			if err := loadFromZipFile(p.SpellChecker, f); err != nil {
+				return err
+			}
+		case smFileName:
+			if err := loadFromZipFile(p.SemanticMatcher, f); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func loadFromZipFile(v interface{}, f *zip.File) error {
+	loader, ok := v.(LoadSaver)
+	if !ok {
+		return nil
+	}
+
+	r, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	return loader.Load(r)
+}
+
+// Save stores the state of the processor into w.
+func (p *Processor) Save(filePath string) (err error) {
+	p.ensureFields()
+
+	tempFile, err := ioutil.TempFile(path.Dir(filePath), "temp-*")
+	if err != nil {
+		return err
+	}
+
+	zw := zip.NewWriter(tempFile)
+
+	if err = saveToZipFile(p.SpellChecker, zw, scFileName); err != nil {
+		goto fail
+	}
+
+	if err = saveToZipFile(p.SemanticMatcher, zw, smFileName); err != nil {
+		goto fail
+	}
+
+	if err = zw.Close(); err != nil {
+		goto fail
+	}
+
+	tempFile.Close()
+
+	return os.Rename(tempFile.Name(), filePath)
+
+fail:
+	tempFile.Close()
+	os.Remove(tempFile.Name())
+
+	return err
+}
+
+func saveToZipFile(v interface{}, zw *zip.Writer, name string) error {
+	saver, ok := v.(LoadSaver)
+	if !ok {
+		return nil
+	}
+
+	w, err := zw.Create(name)
+	if err != nil {
+		return err
+	}
+
+	if err := saver.Save(w); err != nil {
+		return err
+	}
+
+	return nil
 }

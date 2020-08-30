@@ -1,6 +1,10 @@
 package ptpp
 
-import "sync"
+import (
+	"encoding/gob"
+	"io"
+	"sync"
+)
 
 // DefaultSemanticMatcher is a SemanticMatcher which uses a simple lookup table
 // to find the best suggestion.
@@ -43,4 +47,28 @@ func (sm *DefaultSemanticMatcher) Train(context, word string) {
 	}
 
 	sm.contexts[context].Add(word)
+}
+
+// Load restores the state of the semantic-matcher from r.
+func (sm *DefaultSemanticMatcher) Load(r io.Reader) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	if sm.contexts == nil {
+		sm.contexts = make(map[string]wordList)
+	}
+
+	return gob.NewDecoder(r).Decode(&sm.contexts)
+}
+
+// Save stores the state of the semantic-matcher into w.
+func (sm *DefaultSemanticMatcher) Save(w io.Writer) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	if sm.contexts == nil {
+		sm.contexts = make(map[string]wordList)
+	}
+
+	return gob.NewEncoder(w).Encode(sm.contexts)
 }
